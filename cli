@@ -1,0 +1,81 @@
+#!/usr/bin/env stack --silent runhaskell
+{-# LANGUAGE OverloadedStrings #-}
+import Console.Options
+import Turtle
+import Data.Text hiding (empty)
+import Data.Monoid
+
+main = defaultMain $ do
+  programName "cli"
+  programDescription "personal CLI utilities"
+
+  command "help" $ do
+    action $ \_ -> do
+      echo "Usage: cli [command] [arguments]"
+      echo ""
+      echo "Available commands:"
+      echo "  start       start daemons, e.g. postgres"
+      echo "  stop        stop daemons"
+      echo "  version     print version"
+      echo "  haproxy     start/stop development haproxy"
+      echo ""
+
+  command "version" $ do
+    action $ \_ -> do
+      echo "cli version 0.0.1"
+
+  command "start" $
+    command "postgres" $ do
+      action $ \toParam -> do
+        code <- shell "tmux new-session -d -s \"postgresql\" -n posgres-server postgres -D /usr/local/var/postgres9.6" empty
+        guard (code == ExitSuccess)
+        echo "started"
+
+  command "stop" $
+    command "postgres" $ do
+      action $ \toParam -> do
+        shell "tmux send-keys -t \"postgresql\" C-c C-d" empty
+        echo "stopped"
+
+  command "haproxy" $ do
+    command "start" $
+      action $ \toParam -> do
+        code <- shell "tmux new-session -d -s \"haproxy\" -n haproxy sudo haproxy -f /Users/0rca/code/bluecode/dev-essentials/haproxy/haproxy.cfg" empty
+        guard (code == ExitSuccess)
+        echo "started"
+
+    command "stop" $
+      action $ \toParam -> do
+        shell "tmux send-keys -t \"haproxy\" C-c C-d" empty
+        echo "stopped"
+
+  command "xref" $ do
+    command "source" $ do
+      file <- argument "file" (Right . pack)
+      action $ \toParam -> do
+        let name = toParam file
+        shell ("mix xref graph --format dot --source " <> name <> " | grep \"}\\|{\\|compile\"") empty
+        shell ("dot -Tpng xref_graph.dot -o deps.png") empty
+        shell "open deps.png" empty
+        echo "done"
+
+    command "sink" $ do
+      file <- argument "file" (Right . pack)
+      action $ \toParam -> do
+        let name = toParam file
+        shell ("mix xref graph --format dot --sink " <> name <> " | grep \"}\\|{\\|compile\"") empty
+        shell ("dot -Tpng xref_graph.dot -o deps.png") empty
+        shell "open deps.png" empty
+        echo "done"
+
+    command "graph" $ do
+      action $ \toParam -> do
+        shell ("mix xref graph --format dot ") empty
+        echo "done"
+
+    command "hsgraph" $ do
+      action $ \toParam -> do
+        shell ("mix xref graph --format dot") empty
+        shell ("sed -e 's/->/-->/g' xref_graph.dot | grep \"compile\" | sed -e 's/\\[.*\\]//g'") empty
+        return ()
+
